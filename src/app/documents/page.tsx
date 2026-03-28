@@ -10,7 +10,8 @@ import {
   FileText,
   Search,
   ChevronRight,
-  Send
+  Send,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -21,6 +22,8 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState<{show: boolean, msg: string} | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -41,6 +44,11 @@ export default function DocumentsPage() {
   };
 
   async function handleFileUpload(clientId: string, type: string) {
+    setUploadingId(`${clientId}-${type}`);
+    
+    // Simulate network delay for better UX
+    await new Promise(r => setTimeout(r, 800));
+
     // Generate a Dummy URL for Demo
     const fileUrl = `https://supabase-storage-mock.com/uploads/${clientId}_${type}.pdf`;
     
@@ -54,11 +62,17 @@ export default function DocumentsPage() {
 
     if (!error) {
       setDocuments([...documents, data[0]]);
+      setNotification({ show: true, msg: `Successfully uploaded ${type} for ${selectedMonth}` });
+      
       await supabase.from('activity_logs').insert([{ 
         client_id: clientId, 
         action: `Uploaded ${type} for ${selectedMonth}` 
       }]);
+
+      // Auto-hide notification
+      setTimeout(() => setNotification(null), 3000);
     }
+    setUploadingId(null);
   }
 
   return (
@@ -106,7 +120,7 @@ export default function DocumentsPage() {
                     return (
                       <td key={type} className="px-6 py-4 text-center">
                         {doc?.status === 'received' ? (
-                          <div className="inline-flex items-center gap-1.5 text-green-600 bg-green-50 px-3 py-1.5 rounded-full font-bold text-[10px] uppercase border border-green-100">
+                          <div className="inline-flex items-center gap-1.5 text-green-600 bg-green-50 px-3 py-1.5 rounded-full font-bold text-[10px] uppercase border border-green-100 animate-in zoom-in duration-300">
                             <CheckCircle className="w-3.5 h-3.5" />
                             Received
                           </div>
@@ -118,10 +132,15 @@ export default function DocumentsPage() {
                         ) : (
                           <button 
                             onClick={() => handleFileUpload(client.id, type)}
-                            className="inline-flex items-center gap-1.5 text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full font-bold text-[10px] uppercase border border-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 transition-all cursor-pointer group-hover:scale-105"
+                            disabled={uploadingId === `${client.id}-${type}`}
+                            className="inline-flex items-center gap-1.5 text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full font-bold text-[10px] uppercase border border-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 transition-all cursor-pointer group-hover:scale-105 disabled:opacity-50"
                           >
-                            <FileUp className="w-3.5 h-3.5" />
-                            Upload
+                            {uploadingId === `${client.id}-${type}` ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <FileUp className="w-3.5 h-3.5" />
+                            )}
+                            {uploadingId === `${client.id}-${type}` ? 'Uploading...' : 'Upload'}
                           </button>
                         )}
                       </td>
@@ -138,6 +157,16 @@ export default function DocumentsPage() {
           </table>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {notification?.show && (
+        <div className="fixed bottom-8 right-8 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom duration-300 z-[100] border border-slate-700/50">
+          <div className="bg-green-500 p-1.5 rounded-full">
+            <CheckCircle className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-bold text-sm">{notification.msg}</span>
+        </div>
+      )}
     </div>
   );
 }
